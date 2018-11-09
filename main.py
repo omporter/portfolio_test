@@ -863,6 +863,7 @@ def add_sell_trade():
         current_tickers_sheet.update_acell(str(column) + '4', 'COMPLETE')
 
     def multiply(amount, price):
+        ''' ''' 
         return amount * price
 
     def make_buys_dict():
@@ -924,23 +925,117 @@ def add_sell_trade():
         return dictionary
 
     def compile_temps(ticker):
-        # buys prioritised in order of date (most recent first)
-        # sells prioritised in order of amount (lowest amount first)
+        '''buys prioritised in order of date (most recent first)
+         sells prioritised in order of amount (lowest amount first) '''
+        
+        ''' section 1: getting the latest buys prioritised in order of recent first, and sells prioritised in order of amount first ''' 
         buy_dict = make_buys_dict()
         sell_dict = make_sells_dict()
         sorted_sells = sorted(sell_dict.items(), key=lambda kv: kv[1]) # here we reorder the sells dict into a list of tuples in order of size, smallest first 
+        temp_sell_ids = []
+        sell_amounts = []
+        for i in sorted_sells:
+            temp_sell_ids.append(i[0])
+            sell_amounts.append(i[1])
 
-        print(buy_dict)
-        print(sorted_sells)
+        sorted_sells = dict(zip(temp_sell_ids, sell_amounts))
+        latest_buy_num = 0  # buys prioritised by trade ID, where the larger the trade ID number, the more recent the trade. This seems sound logic until proven otherwise. 
+        if (len(buy_dict) is not 0):
+            a = []
+            for i in buy_dict:
+                a.append(i.replace((ticker), ""))
 
+            a = list(map(int, a))
+            latest_buy_num = max(a)
+        
+        prioritised_buy_key = str(ticker) + str(latest_buy_num)
+        prioritised_sell_key = temp_sell_ids[0]
+        prioritised_buy_value = float(buy_dict[prioritised_buy_key])  # next step: matching 
+        
 
+        ''' secrion 2: iterating over the live temp trades, adding them together and seeing if they match any live buy trades. '''
+        total = 0 # where total is the current total of the sum of live temp sells 
+        counter = 0
+        for i in sell_amounts:
+            i = float(i)
+            ''' if smaller ''' 
+            if prioritised_buy_value > total:
+                total += i
+                counter += 1
+                if len(sell_amounts) == counter: # if all temps have been exhausted check conditions here 
+                    ''' if equal ''' 
+                    if prioritised_buy_value == total:
+                        columns = []  # Update trade ID of all temps just used to the prioritised_buy_key
+                        for j in temp_sell_ids:
+                            cell = current_tickers_sheet.find(j)
+                            columns.append(alphabet[(cell.col) - 1])
 
+                        for j in columns: 
+                            current_tickers_sheet.update_acell(str(j) + '24', prioritised_buy_key)
+                            current_tickers_sheet.update_acell(str(j) + '25', 'COMPLETE')  #All temps used so far get their completed status updated from 'live' to 'completed' 
+                        
+                        close_the_buy(prioritised_buy_key) # the first buy itself gets its completed status updated from 'live' to 'completed' (easiest way is just to do this for each iteration even though its less efficient)
+                        total = 0 # resetting counter and total to run the function again recursively 
+                        counter = 0
+                        compile_temps(ticker) # recursively calling the function again to mop up and straggler temps 
+                    elif (prioritised_buy_value < total):
+                        remainder = total - prioritised_buy_value # fetching the remainder of the last temp minus the overhang compared to the prioritised buy 
+                        columns = []  # Update trade ID of all temps just used to the prioritised_buy_key
+                        for j in temp_sell_ids:
+                            cell = current_tickers_sheet.find(j)
+                            columns.append(alphabet[(cell.col) - 1])
 
-        # temp_amounts = list(sell_dict.values())
-        # print(temp_amounts)
-        # sort buys by order of history
+                        for j in columns: 
+                            current_tickers_sheet.update_acell(str(j) + '24', prioritised_buy_key)
+                            current_tickers_sheet.update_acell(str(j) + '25', 'COMPLETE')  # All temps used so far get their completed status updated from 'live' to 'completed' 
+                            close_the_buy(prioritised_buy_key) # The first buy itself gets its completed status updated from 'live' to 'completed' (easiest way is just to do this for each iteration even though its less efficient)
 
+                        update_last_temp_amount = i - remainder  # find the most recent sell amount in the iteration and subtract the remainder from it. This is an additional step compared to if prioritised_buy_trade == value 
+                        current_tickers_sheet.update_acell(str(columns[counter -1]) + '26', update_last_temp_amount) # then change this amount in the sheet under the most recent sell iteration 
+                        current_tickers_sheet.update_acell(str(columns[counter -1]) + '29', float(current_tickers_sheet.acell(str(columns[counter -1]) + '26').value) * float(current_tickers_sheet.acell(str(columns[counter -1]) + '27').value)) # then change this amount in the sheet under the most recent sell iteration 
+                        current_tickers_sheet.update_acell(str(columns[counter -1]) + '30', float(current_tickers_sheet.acell(str(columns[counter -1]) + '26').value) * float(current_tickers_sheet.acell(str(columns[counter -1]) + '28').value)) # long winded way of changing the amounts of the most recent sell iteration 
+                        cell_list = current_tickers_sheet.range(str(columns[counter -1] + '24:' + str(columns[counter -1]) + '33')) # fetching the values of the most recent temp to copy to the split copy 
+                        values = []
+                        for cell in cell_list:
+                            values.append(cell.value)
 
+                        # then create a new temp with the remainder using the data from the most recent sell iteration. 
+                        values[0] = next_trade_id(ticker) # altering the values so its a unique temp sell 
+                        values[1] = 'LIVE'
+                        values[2] = str(remainder)
+                        values[5] = str(float(values[3]) * remainder)
+                        values[6] = str(float(values[4]) * remainder)
+                        values[9] = 'split'
+                        num_of_cols = len(current_tickers_sheet.row_values(24)) # finding the next available column 
+                        next_available_col = alphabet[num_of_cols]
+                        cell_list = current_tickers_sheet.range(next_available_col + '24:' + next_available_col + '33') # pasting the values into the next column at appropriate rows
+                        counter = 0
+                        for cell in cell_list:
+                            cell.value = values[counter]
+                            counter += 1
+
+                        current_tickers_sheet.update_cells(cell_list)
+                        total = 0
+                        counter = 0
+                        compile_temps(ticker) # recursively calling the function now all the date is down, and resetting totals and counter variables 
+
+            
+
+                        ''' final to do: clear any column data that who's amounts contain 'e-17', 'e-16' or 'e-15' as this is a python error ''' 
+
+            
+            # # find all the temps again. If any are found, run again. 
+            # sell_dict = make_sells_dict()
+            # sorted_sells = sorted(sell_dict.items(), key=lambda kv: kv[1]) # here we reorder the sells dict into a list of tuples in order of size, smallest first 
+            # temp_sell_ids = []
+            # sell_amounts = []
+            # for i in sorted_sells:
+            #     temp_sell_ids.append(i[0])
+            #     sell_amounts.append(i[1])
+
+            # sorted_sells = dict(zip(temp_sell_ids, sell_amounts))
+            # if len(sorted_sells) is not 0:
+            #     extra_conditions(i)
 
 
     def split_sell(ticker, dictionary, amount, price_btc, price_usd, exchange, notes):
@@ -1010,37 +1105,35 @@ def add_sell_trade():
             else:
                 add_to_sheet(list_3)
 
-        compile_temps(ticker)
-
 
 
     ''' section 2: function variables ''' 
     ticker = 'BTC'
-    ticker = input('Enter Ticker\n').upper()
+    # ticker = input('Enter Ticker\n').upper()
     current_tickers_sheet = sh.worksheet(ticker)
-    amount = input('Enter Amount\n')
-    if (ticker == 'BTC'):
-        price_btc = '1'
-    else:
-        price_btc = input('Enter Price BTC (Live Price is ' + fetch_price_btc(ticker) + ' sats.)\n')
-    if (ticker == 'USD'):
-        price_usd = '1'
-    else: 
-        price_usd = input('Enter Price USD (Live Price is $' + fetch_price_usd(ticker) + ' USD.)\n')
-    exchange = input('Enter Exchange\n')
-    notes = input('Enter Notes\n')
+    # amount = input('Enter Amount\n')
+    # if (ticker == 'BTC'):
+    #     price_btc = '1'
+    # else:
+    #     price_btc = input('Enter Price BTC (Live Price is ' + fetch_price_btc(ticker) + ' sats.)\n')
+    # if (ticker == 'USD'):
+    #     price_usd = '1'
+    # else: 
+    #     price_usd = input('Enter Price USD (Live Price is $' + fetch_price_usd(ticker) + ' USD.)\n')
+    # exchange = input('Enter Exchange\n')
+    # notes = input('Enter Notes\n')
 
 
-    ''' section 3: execution''' 
-    user_input = input('Would you like to match this sell to a specific buy trade?\n (1) (Default) Match with the most recent trade.\n (2) Match with a specific trade ID code. \n')
-    user_input = str(user_input)
-    if (user_input == '1'):
-        split_sell(ticker, make_buys_dict(), amount, price_btc, price_usd, exchange, notes)
-    elif (user_input == '2'):
-        buy_trade_id = input('Enter the buy trade ID to match\n') 
-    else:
-        print('Sorry, you need to choose (1) or (2). \n Please try again.')
-        add_sell_trade()
+    # ''' section 3: execution''' 
+    # user_input = input('Would you like to match this sell to a specific buy trade?\n (1) (Default) Match with the most recent trade.\n (2) Match with a specific trade ID code. \n')
+    # user_input = str(user_input)
+    # if (user_input == '1'):
+    #     split_sell(ticker, make_buys_dict(), amount, price_btc, price_usd, exchange, notes)
+    # elif (user_input == '2'):
+    #     buy_trade_id = input('Enter the buy trade ID to match\n') 
+    # else:
+    #     print('Sorry, you need to choose (1) or (2). \n Please try again.')
+    #     add_sell_trade()
 
     compile_temps(ticker)
     return ticker
@@ -1054,8 +1147,6 @@ def add_sell_trade():
 
      '''
 
-
-
 # to do 
 def configure_sell_trade(ticker):
     
@@ -1067,9 +1158,6 @@ def configure_sell_trade(ticker):
     if holdings_after_sale == 0:
         delete_ticker_from_live_trade_if_holdings_are_zero(ticker)
     pass
-
-
-
 
 
 ''' ---------------------------------------------------------------------- ''' 
@@ -1188,7 +1276,7 @@ odd jobs:
 
 '''
 
-new_trade_meta()
+# new_trade_meta()
 
-
+add_sell_trade()
 
