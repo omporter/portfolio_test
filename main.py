@@ -121,12 +121,12 @@ def new_trade_meta():
 # to do 
 def buy_trade_meta():
     ticker = add_buy_trade()
-    configure_buy_trade(ticker)
+    configure_live_trades_sheet(ticker)
 
 # to do 
 def sell_trade_meta():
     ticker = add_sell_trade()
-    configure_sell_trade(ticker) 
+    configure_completed_trades_sheet(ticker) 
 
 # to do 
 def display_bonus_info():
@@ -567,24 +567,13 @@ def reorder_live_trades():
     pass
 
 
-
 ''' new buy trade ''' 
 # complete 
 def add_buy_trade():
     ''' adds all the new data based on user input, then returns the ticker for live trade and completed trade functions to process '''
 
-    
-    ''' step 1: find the ticker for this trade ''' 
-    ticker = input('Enter Ticker\n')
-
-    ''' step2: check if this coin has been used before '''
-    existing_tickers = live_trades_sheet.row_values(2)
-    existing_tickers.pop(0)
-
     def create_new_sheet(ticker):
         new_sheet = sh.add_worksheet(title=ticker, rows="1000", cols="1000")
-
-
         initial_values = [
                             'BUY', 
                             'Unique ID',
@@ -611,6 +600,7 @@ def add_buy_trade():
                             'Raw Sell ID', 
                             'Trade ID',
                             'Completed',
+                            'In Completed Trades',
                             'Amount',
                             'Price BTC',
                             'Price USD',
@@ -633,10 +623,8 @@ def add_buy_trade():
                             'Exchange',
                             'Notes'
                             ]
-        
 
-        cell_list = new_sheet.range('A1:A45')
-
+        cell_list = new_sheet.range('A1:A47')
         counter = 0
         for cell in cell_list:
             cell.value = initial_values[counter]
@@ -645,7 +633,6 @@ def add_buy_trade():
         new_sheet.update_cells(cell_list)    
 
     def add_new_ticker_to_live_trades(ticker):
-
         current_positions = live_trades_sheet.row_values(2)
         current_positions.pop(0)
         last_column = alphabet[len(current_positions) + 1]
@@ -669,13 +656,7 @@ def add_buy_trade():
             return str(ticker) + str(highest)
 
     def complete_task(ticker):
-
         current_tickers_sheet = sh.worksheet(ticker)
-
-
-
-
-
         ''' step 3: define variables to add to sheet ''' 
         trade_id = next_trade_id(ticker, current_tickers_sheet)
         completed = 'LIVE'
@@ -700,20 +681,14 @@ def add_buy_trade():
         stop_loss = input('Enter Trade Stop Loss\n')
         r_r_ratio = calculate_r_r_ratio()
         notes = input('Enter Any Notes for this Trade\n')
-
         ''' step 4: add variables to list ready to be iterated over ''' 
         data_list = [trade_id, completed, amount, price_btc, price_usd, total_btc, total_usd, date, time, exchange, commission, commission_cost_btc, commission_cost_usd, target, stop_loss, r_r_ratio, notes]
-
-
         ''' step 5: find correct column based on the latest entry '''
         column_count_data = current_tickers_sheet.row_values(3)
         column_count = len(column_count_data)
-        
-
         ''' step 6: select the column based on the index of the alphabet, then use rows 2 to 18 which are hard coded for the fields ''' 
         current_range = alphabet[column_count].upper() + '3:' + alphabet[column_count].upper() + '19'
         cell_list = current_tickers_sheet.range(current_range)
-
         ''' step 7: paste in the data_list to the appropriate cells ''' 
         counter = 0
         for cell in cell_list:
@@ -724,104 +699,111 @@ def add_buy_trade():
         current_tickers_sheet.update_cells(cell_list)
 
 
-    if any(ticker in s for s in existing_tickers):
-        print('History found for this ticker, adding trade to existing sheet')
-        complete_task(ticker)
+    ticker = input('Enter Ticker\n') # find the ticker for this trade
+    if ticker in coin_url_extentions.keys():
+        existing_tickers = live_trades_sheet.row_values(2)  #check if this coin has been used before
+        existing_tickers.pop(0)
+        if any(ticker in s for s in existing_tickers):
+            print('History found for this ticker, adding trade to existing sheet')
+            complete_task(ticker)
+        else:
+            print('No history found for this ticker. Creating new sheet.')
+            create_new_sheet(ticker)
+            add_new_ticker_to_live_trades(ticker)
+            complete_task(ticker)
+        print('Todays trade successfully added to tickers sheet.')
+        return ticker
     else:
-        print('No history found for this ticker. Creating new sheet.')
-        create_new_sheet(ticker)
-        add_new_ticker_to_live_trades(ticker)
-        complete_task(ticker)
-
-    print('add todays trade complete')
-    return ticker
+        print("Ticker not in 'coin_url_extentions' variable. Add coinmarketcap API extention first before adding this coin.\n\n ")
+        new_trade_meta()
 
 # complete 
-def configure_buy_trade(ticker):
+def configure_live_trades_sheet(ticker):
 
     ''' step 1: open ticker sheet based on the add_todays_trade() function. This WILL be generated by now whether new or existing ticker''' 
-    current_tickers_sheet = sh.worksheet(ticker)
+    if ticker not in coin_url_extentions.keys():
+        print("Ticker not in 'coin_url_extentions' variable. Add coinmarketcap API extention first before adding this coin.\n\n ")
+        new_trade_meta()
+    else:
+        current_tickers_sheet = sh.worksheet(ticker)
+        ''' step 2: find columns that are 'LIVE' from relevant ticker sheet, make list of relevant column letters ''' 
+        cell_list = current_tickers_sheet.findall("LIVE")
+        if (len(cell_list) == 0): # if all buys have been matched with sells and holdings are now 0 
+            print('No Live Trades Found. There are no currently no holdings of ' + str(ticker) +  '.') 
+            # find the column of ticker in live trades
+            all_live_tickers = live_trades_sheet.row_values(2)
+            counter = 0
+            col_to_remove = ''
+            for i in all_live_tickers:
+                if (i == ticker):
+                    col_to_remove = alphabet[counter]
 
+                counter += 1
 
-    ''' step 2: find columns that are 'LIVE' from relevant ticker sheet, make list of relevant column letters ''' 
-    cell_list = current_tickers_sheet.findall("LIVE")
-    live_cols_list_numbers = []
-    for i in cell_list:
-        live_cols_list_numbers.append(i.col)
+            cell_list = live_trades_sheet.range(col_to_remove + '1:' + col_to_remove +'25')
+            for cell in cell_list:
+                cell.value = ''
 
-    col_list = []
-    for i in live_cols_list_numbers:
-        col_list.append(alphabet[i-1])
+            live_trades_sheet.update_cells(cell_list)
+            reorder_live_trades()
+        else:
+            live_cols_list_numbers = []
+            for i in cell_list:
+                live_cols_list_numbers.append(i.col)
 
+            col_list = []
+            for i in live_cols_list_numbers:
+                col_list.append(alphabet[i-1])
+            ''' step 3: collect all information from multiple columns''' 
+            list_of_amounts = []
+            list_of_btc_spent=[]
+            list_of_usd_spent = []
+            for i in col_list:
+                ''' amount (on row 4 of ticker sheet) ''' 
+                each_amount = current_tickers_sheet.acell(str(i) + '5').value
+                list_of_amounts.append(each_amount)
+                ''' total btc spent (on row 7 of ticker sheet) ''' 
+                each_btc_spent = current_tickers_sheet.acell(str(i) + '8').value
+                list_of_btc_spent.append(each_btc_spent)
+                ''' total usd spent (on row 8 of ticker sheet) ''' 
+                each_usd_spent = current_tickers_sheet.acell(str(i) + '9').value
+                list_of_usd_spent.append(each_usd_spent)
 
-    ''' step 3: collect all information from multiple columns''' 
+            ''' step 4: generate variables based of 'LIVE' data ''' 
+            trade_id = 1
+            amount = sum([float(i) for i in list_of_amounts])
+            total_cost_btc = sum([float(i) for i in list_of_btc_spent])
+            total_cost_usd = sum([float(i) for i in list_of_usd_spent])
+            average_buy_price_btc = float(total_cost_btc) / float(amount)  # take sum of USD spent and divide it by amount of coins held 
+            average_buy_price_usd = float(total_cost_usd) / float(amount)  # take sum of USD spent and divide it by amount of coins held 
+            most_recent_buy_date = ''
+            live_price_btc = fetch_price_btc(ticker)
+            live_price_usd = fetch_price_usd(ticker)
+            current_value_btc = float(live_price_btc) * float(amount)
+            current_value_usd = float(live_price_usd) * float(amount)
+            date_today = str(datetime.datetime.now())
+            trade_duration = ''
+            capital_gain = '' # boolean, true if over 366 days 
+            total_commission_btc = ''
+            total_commission_usd = ''
+            unrealised_pl_btc = current_value_btc - total_cost_btc
+            unrealised_pl_usd = current_value_usd - total_cost_usd
+            notes = None
+            ''' step 5: place variables in data_list ready to paste ''' 
+            data_list = [trade_id, ticker, amount, average_buy_price_btc, average_buy_price_usd, total_cost_btc, total_cost_usd, most_recent_buy_date, live_price_btc, live_price_usd, current_value_btc, current_value_usd, date_today, trade_duration, capital_gain, total_commission_btc, total_commission_usd, unrealised_pl_btc, unrealised_pl_usd, notes] #etc 
+            ''' step 6: find appropriate column based on ticker '''
+            live_trades_sheet_ticker_cell = live_trades_sheet.find(ticker)
+            correct_column_live_trades = alphabet[(live_trades_sheet_ticker_cell.col) - 1]
+            ''' step 7: paste new data to sheet ''' 
+            cell_list_live_trades = live_trades_sheet.range(str(correct_column_live_trades) + '1:' + str(correct_column_live_trades) + '20')
+            counter = 0
+            for cell in cell_list_live_trades:
+                if counter < len(data_list):
+                    cell.value = data_list[counter]
+                    counter += 1
 
-    list_of_amounts = []
-    list_of_btc_spent=[]
-    list_of_usd_spent = []
-
-    for i in col_list:
-        ''' amount (on row 4 of ticker sheet) ''' 
-        each_amount = current_tickers_sheet.acell(str(i) + '5').value
-        list_of_amounts.append(each_amount)
-
-        ''' total btc spent (on row 7 of ticker sheet) ''' 
-        each_btc_spent = current_tickers_sheet.acell(str(i) + '8').value
-        list_of_btc_spent.append(each_btc_spent)
-
-        ''' total usd spent (on row 8 of ticker sheet) ''' 
-        each_usd_spent = current_tickers_sheet.acell(str(i) + '9').value
-        list_of_usd_spent.append(each_usd_spent)
-
-
-
-
-    ''' step 4: generate variables based of 'LIVE' data ''' 
-    trade_id = 1
-    amount = sum([float(i) for i in list_of_amounts])
-    total_cost_btc = sum([float(i) for i in list_of_btc_spent])
-    total_cost_usd = sum([float(i) for i in list_of_usd_spent])
-    average_buy_price_btc = float(total_cost_btc) / float(amount)  # take sum of USD spent and divide it by amount of coins held 
-    average_buy_price_usd = float(total_cost_usd) / float(amount)  # take sum of USD spent and divide it by amount of coins held 
-    most_recent_buy_date = ''
-    live_price_btc = fetch_price_btc(ticker)
-    live_price_usd = fetch_price_usd(ticker)
-    current_value_btc = float(live_price_btc) * float(amount)
-    current_value_usd = float(live_price_usd) * float(amount)
-    date_today = str(datetime.datetime.now())
-    trade_duration = ''
-    capital_gain = '' # boolean, true if over 366 days 
-    total_commission_btc = ''
-    total_commission_usd = ''
-    unrealised_pl_btc = current_value_btc - total_cost_btc
-    unrealised_pl_usd = current_value_usd - total_cost_usd
-    notes = None
-
-    ''' step 5: place variables in data_list ready to paste ''' 
-    data_list = [trade_id, ticker, amount, average_buy_price_btc, average_buy_price_usd, total_cost_btc, total_cost_usd, most_recent_buy_date, live_price_btc, live_price_usd, current_value_btc, current_value_usd, date_today, trade_duration, capital_gain, total_commission_btc, total_commission_usd, unrealised_pl_btc, unrealised_pl_usd, notes] #etc 
-
-
-    ''' step 6: find appropriate column based on ticker '''
-
-    live_trades_sheet_ticker_cell = live_trades_sheet.find(ticker)
-    correct_column_live_trades = alphabet[(live_trades_sheet_ticker_cell.col) - 1]
-
-
-    ''' step 7: paste new data to sheet ''' 
-
-    cell_list_live_trades = live_trades_sheet.range(str(correct_column_live_trades) + '1:' + str(correct_column_live_trades) + '20')
-
-
-    counter = 0
-    for cell in cell_list_live_trades:
-        if counter < len(data_list):
-            cell.value = data_list[counter]
-            counter += 1
-
-    live_trades_sheet.update_cells(cell_list_live_trades)
-    print('new trade configured to live trades sheet completed')
-
-
+            live_trades_sheet.update_cells(cell_list_live_trades)
+            print('New trade processed and included in live trades sheet.')
 
 ''' new sell trade '''
 
@@ -832,7 +814,7 @@ def add_sell_trade():
     def add_to_sheet(data_list):
         values_list = current_tickers_sheet.row_values(24)
         x = alphabet[len(values_list)]
-        cell_list = current_tickers_sheet.range(str(x) + '24:' + str(x) + '33')
+        cell_list = current_tickers_sheet.range(str(x) + '24:' + str(x) + '34')
         counter = 0
         for cell in cell_list:
             cell.value = data_list[counter]
@@ -911,7 +893,7 @@ def add_sell_trade():
         # get current buy amounts with live status 
         live_sell_match_amounts = []
         counter = 0
-        x = current_tickers_sheet.row_values(26)
+        x = current_tickers_sheet.row_values(27)
         for i in live_status_columns:
             live_sell_match_amounts.append(x[i])
 
@@ -953,7 +935,7 @@ def add_sell_trade():
         prioritised_buy_value = float(buy_dict[prioritised_buy_key])  # next step: matching 
         
 
-        ''' secrion 2: iterating over the live temp trades, adding them together and seeing if they match any live buy trades. '''
+        ''' section 2: iterating over the live temp trades, adding them together and seeing if they match any live buy trades. '''
         total = 0 # where total is the current total of the sum of live temp sells 
         counter = 0
         for i in sell_amounts:
@@ -977,7 +959,8 @@ def add_sell_trade():
                         close_the_buy(prioritised_buy_key) # the first buy itself gets its completed status updated from 'live' to 'completed' (easiest way is just to do this for each iteration even though its less efficient)
                         total = 0 # resetting counter and total to run the function again recursively 
                         counter = 0
-                        compile_temps(ticker) # recursively calling the function again to mop up and straggler temps 
+                        if (len(make_sells_dict()) != 0): # if there are no temps left, then it won't recursively trigger. 
+                            compile_temps(ticker) # recursively calling the function again to mop up and straggler temps 
                     elif (prioritised_buy_value < total):
                         remainder = total - prioritised_buy_value # fetching the remainder of the last temp minus the overhang compared to the prioritised buy 
                         columns = []  # Update trade ID of all temps just used to the prioritised_buy_key
@@ -991,10 +974,10 @@ def add_sell_trade():
                             close_the_buy(prioritised_buy_key) # The first buy itself gets its completed status updated from 'live' to 'completed' (easiest way is just to do this for each iteration even though its less efficient)
 
                         update_last_temp_amount = i - remainder  # find the most recent sell amount in the iteration and subtract the remainder from it. This is an additional step compared to if prioritised_buy_trade == value 
-                        current_tickers_sheet.update_acell(str(columns[counter -1]) + '26', update_last_temp_amount) # then change this amount in the sheet under the most recent sell iteration 
-                        current_tickers_sheet.update_acell(str(columns[counter -1]) + '29', float(current_tickers_sheet.acell(str(columns[counter -1]) + '26').value) * float(current_tickers_sheet.acell(str(columns[counter -1]) + '27').value)) # then change this amount in the sheet under the most recent sell iteration 
-                        current_tickers_sheet.update_acell(str(columns[counter -1]) + '30', float(current_tickers_sheet.acell(str(columns[counter -1]) + '26').value) * float(current_tickers_sheet.acell(str(columns[counter -1]) + '28').value)) # long winded way of changing the amounts of the most recent sell iteration 
-                        cell_list = current_tickers_sheet.range(str(columns[counter -1] + '24:' + str(columns[counter -1]) + '33')) # fetching the values of the most recent temp to copy to the split copy 
+                        current_tickers_sheet.update_acell(str(columns[counter -1]) + '27', update_last_temp_amount) # then change this amount in the sheet under the most recent sell iteration 
+                        current_tickers_sheet.update_acell(str(columns[counter -1]) + '30', float(current_tickers_sheet.acell(str(columns[counter -1]) + '27').value) * float(current_tickers_sheet.acell(str(columns[counter -1]) + '28').value)) # then change this amount in the sheet under the most recent sell iteration 
+                        current_tickers_sheet.update_acell(str(columns[counter -1]) + '31', float(current_tickers_sheet.acell(str(columns[counter -1]) + '27').value) * float(current_tickers_sheet.acell(str(columns[counter -1]) + '29').value)) # long winded way of changing the amounts of the most recent sell iteration 
+                        cell_list = current_tickers_sheet.range(str(columns[counter -1] + '24:' + str(columns[counter -1]) + '34')) # fetching the values of the most recent temp to copy to the split copy 
                         values = []
                         for cell in cell_list:
                             values.append(cell.value)
@@ -1002,13 +985,14 @@ def add_sell_trade():
                         # then create a new temp with the remainder using the data from the most recent sell iteration. 
                         values[0] = next_trade_id(ticker) # altering the values so its a unique temp sell 
                         values[1] = 'LIVE'
-                        values[2] = str(remainder)
-                        values[5] = str(float(values[3]) * remainder)
-                        values[6] = str(float(values[4]) * remainder)
-                        values[9] = 'split'
+                        values[2] = 'False'
+                        values[3] = str(remainder)
+                        values[6] = str(float(values[3]) * remainder)
+                        values[7] = str(float(values[4]) * remainder)
+                        values[10] = 'split'
                         num_of_cols = len(current_tickers_sheet.row_values(24)) # finding the next available column 
                         next_available_col = alphabet[num_of_cols]
-                        cell_list = current_tickers_sheet.range(next_available_col + '24:' + next_available_col + '33') # pasting the values into the next column at appropriate rows
+                        cell_list = current_tickers_sheet.range(next_available_col + '24:' + next_available_col + '34') # pasting the values into the next column at appropriate rows
                         counter = 0
                         for cell in cell_list:
                             cell.value = values[counter]
@@ -1017,8 +1001,8 @@ def add_sell_trade():
                         current_tickers_sheet.update_cells(cell_list)
                         total = 0
                         counter = 0
-                        compile_temps(ticker) # recursively calling the function now all the date is down, and resetting totals and counter variables 
-
+                        if (len(make_sells_dict()) != 0): # checks to see if there are any temps left. If there are none it will throw an error. 
+                            compile_temps(ticker) # recursively calling the function now all the date is down, and resetting totals and counter variables 
             
 
                         ''' final to do: clear any column data that who's amounts contain 'e-17', 'e-16' or 'e-15' as this is a python error ''' 
@@ -1039,9 +1023,9 @@ def add_sell_trade():
 
 
     def split_sell(ticker, dictionary, amount, price_btc, price_usd, exchange, notes):
-        
         trade_id = next_trade_id(ticker)
         completed = 'LIVE'
+        in_completed_trades = 'False'
         total_btc = float(amount) * float(price_btc)
         total_usd = float(amount) * float(price_usd)
         date = str(datetime.datetime.now())
@@ -1055,88 +1039,91 @@ def add_sell_trade():
             sum_of_two_recent_buys = most_recent_buy + second_recent_buy
 
         if (amount < most_recent_buy):
-            data_list = [trade_id, completed, amount, price_btc, price_usd, total_btc, total_usd, date, exchange, notes]
+            data_list = [trade_id, completed, in_completed_trades, amount, price_btc, price_usd, total_btc, total_usd, date, exchange, notes]
             add_to_sheet(data_list)
         elif (amount == most_recent_buy):
             completed = 'COMPLETE'
             trade_id = ((list(dictionary.keys()))[::-1])[0]  #  we're (i) taking the dictionary keys and putting them in a list, (ii) reversing the list, (iii) taking the first index of that list to get our latest buy trade ID 
-            data_list = [trade_id, completed, amount, price_btc, price_usd, total_btc, total_usd, date, exchange, notes]
+            data_list = [trade_id, completed, in_completed_trades, amount, price_btc, price_usd, total_btc, total_usd, date, exchange, notes]
             add_to_sheet(data_list)
             close_the_buy(trade_id)
         elif (amount > most_recent_buy) and (amount < sum_of_two_recent_buys):
             trade_id_1 = ((list(dictionary.keys()))[::-1])[0]
             amount_2 = amount - most_recent_buy
             amount_1 = amount - amount_2
-            list_1 = [trade_id_1, 'COMPLETE', amount_1, price_btc, price_usd, multiply(amount_1, price_btc), multiply(amount_1, price_usd), date, exchange, notes]
+            list_1 = [trade_id_1, 'COMPLETE', in_completed_trades, amount_1, price_btc, price_usd, multiply(amount_1, price_btc), multiply(amount_1, price_usd), date, exchange, notes]
             add_to_sheet(list_1)
             trade_id_2 = next_trade_id(ticker)
-            list_2 = [trade_id_2, 'LIVE', amount_2, price_btc, price_usd, multiply(amount_2, price_btc), multiply(amount_2, price_usd), date, exchange, notes]
+            list_2 = [trade_id_2, 'LIVE', in_completed_trades, amount_2, price_btc, price_usd, multiply(amount_2, price_btc), multiply(amount_2, price_usd), date, exchange, notes]
             add_to_sheet(list_2)
             close_the_buy(trade_id_1)
         elif (amount == sum_of_two_recent_buys):
             trade_id_1 = ((list(dictionary.keys()))[::-1])[0]
             amount_2 = amount - most_recent_buy
             amount_1 = amount - amount_2
-            list_1 = [trade_id_1, 'COMPLETE', amount_1, price_btc, price_usd, multiply(amount_1, price_btc), multiply(amount_1, price_usd), date, exchange, notes]
+            list_1 = [trade_id_1, 'COMPLETE', in_completed_trades, amount_1, price_btc, price_usd, multiply(amount_1, price_btc), multiply(amount_1, price_usd), date, exchange, notes]
             add_to_sheet(list_1)
             trade_id_2 = ((list(dictionary.keys()))[::-1])[1]
-            list_2 = [trade_id_2, 'COMPLETE', amount_2, price_btc, price_usd, multiply(amount_2, price_btc), multiply(amount_2, price_usd), date, exchange, notes]
+            list_2 = [trade_id_2, 'COMPLETE', in_completed_trades, amount_2, price_btc, price_usd, multiply(amount_2, price_btc), multiply(amount_2, price_usd), date, exchange, notes]
             add_to_sheet(list_2)
             close_the_buy(trade_id_1)
             close_the_buy(trade_id_2)
         elif (amount > sum_of_two_recent_buys):
-            trade_id_1 = ((list(dictionary.keys()))[::-1])[0] #BTC9
-            amount_2_wrong = amount - most_recent_buy # 2.4
-            amount_1 = amount - amount_2_wrong #0.5
-            amount_3 = amount_2_wrong - second_recent_buy # 0.4
+            trade_id_1 = ((list(dictionary.keys()))[::-1])[0] 
+            amount_2_wrong = amount - most_recent_buy 
+            amount_1 = amount - amount_2_wrong 
+            amount_3 = amount_2_wrong - second_recent_buy
             amount_2 = amount - amount_3 - amount_1
-            list_1 = [trade_id_1, 'COMPLETE', amount_1, price_btc, price_usd, multiply(amount_1, price_btc), multiply(amount_1, price_usd), date, exchange, notes]
+            list_1 = [trade_id_1, 'COMPLETE', in_completed_trades, amount_1, price_btc, price_usd, multiply(amount_1, price_btc), multiply(amount_1, price_usd), date, exchange, notes]
             add_to_sheet(list_1)
             trade_id_2 = ((list(dictionary.keys()))[::-1])[1]
-            list_2 = [trade_id_2, 'COMPLETE', amount_2, price_btc, price_usd, multiply(amount_2, price_btc), multiply(amount_2, price_usd), date, exchange, notes]
+            list_2 = [trade_id_2, 'COMPLETE', in_completed_trades, amount_2, price_btc, price_usd, multiply(amount_2, price_btc), multiply(amount_2, price_usd), date, exchange, notes]
             add_to_sheet(list_2)
             trade_id_3 = next_trade_id(ticker)
             print(trade_id_3)
-            list_3 = [trade_id_3, 'LIVE', amount_3, price_btc, price_usd, multiply(amount_3, price_btc), multiply(amount_3, price_usd), date, exchange, notes]
+            list_3 = [trade_id_3, 'LIVE', in_completed_trades, amount_3, price_btc, price_usd, multiply(amount_3, price_btc), multiply(amount_3, price_usd), date, exchange, notes]
             close_the_buy(trade_id_1)
             close_the_buy(trade_id_2)
             if amount_3 > 0:
                 split_sell(ticker, make_buys_dict(), amount_3, price_btc, price_usd, exchange, notes)
             else:
                 add_to_sheet(list_3)
-
-
+        else:
+            print('Error calculating sell amount to recent buy amounts')
 
     ''' section 2: function variables ''' 
-    ticker = 'BTC'
-    # ticker = input('Enter Ticker\n').upper()
-    current_tickers_sheet = sh.worksheet(ticker)
-    # amount = input('Enter Amount\n')
-    # if (ticker == 'BTC'):
-    #     price_btc = '1'
-    # else:
-    #     price_btc = input('Enter Price BTC (Live Price is ' + fetch_price_btc(ticker) + ' sats.)\n')
-    # if (ticker == 'USD'):
-    #     price_usd = '1'
-    # else: 
-    #     price_usd = input('Enter Price USD (Live Price is $' + fetch_price_usd(ticker) + ' USD.)\n')
-    # exchange = input('Enter Exchange\n')
-    # notes = input('Enter Notes\n')
+    ticker = input('Enter Ticker\n').upper()
+    if ticker in coin_url_extentions.keys():
+        current_tickers_sheet = sh.worksheet(ticker)
+        amount = input('Enter Amount\n')
+        if (ticker == 'BTC'):
+            price_btc = '1'
+        else:
+            price_btc = input('Enter Price BTC (Live Price is ' + fetch_price_btc(ticker) + ' sats.)\n')
+        if (ticker == 'USD'):
+            price_usd = '1'
+        else: 
+            price_usd = input('Enter Price USD (Live Price is $' + fetch_price_usd(ticker) + ' USD.)\n')
+        exchange = input('Enter Exchange\n')
+        notes = input('Enter Notes\n')
+        ''' section 3: execution''' 
+        user_input = input('Would you like to match this sell to a specific buy trade?\n (1) (Default) Match with the most recent trade.\n (2) Match with a specific trade ID code. \n')
+        user_input = str(user_input)
+        if (user_input == '1'):
+            split_sell(ticker, make_buys_dict(), amount, price_btc, price_usd, exchange, notes)
+        elif (user_input == '2'):
+            buy_trade_id = input('Enter the buy trade ID to match\n') 
+        else:
+            print('Sorry, you need to choose (1) or (2). \n Please try again.')
+            add_sell_trade()
 
-
-    # ''' section 3: execution''' 
-    # user_input = input('Would you like to match this sell to a specific buy trade?\n (1) (Default) Match with the most recent trade.\n (2) Match with a specific trade ID code. \n')
-    # user_input = str(user_input)
-    # if (user_input == '1'):
-    #     split_sell(ticker, make_buys_dict(), amount, price_btc, price_usd, exchange, notes)
-    # elif (user_input == '2'):
-    #     buy_trade_id = input('Enter the buy trade ID to match\n') 
-    # else:
-    #     print('Sorry, you need to choose (1) or (2). \n Please try again.')
-    #     add_sell_trade()
-
-    compile_temps(ticker)
-    return ticker
+        if (len(make_sells_dict()) != 0):
+            compile_temps(ticker)
+        
+        return ticker
+    else:
+        print("\nTicker not in 'coin_url_extentions' variable. Add coinmarketcap API extention first before adding this coin.\n ")
+        new_trade_meta()
 
 
     ''' to do:
@@ -1148,16 +1135,311 @@ def add_sell_trade():
      '''
 
 # to do 
-def configure_sell_trade(ticker):
-    
-    '''
-    completed trade sheet should be flipped so it runs downwards vertically, not horizontally as it will get full up fast. 
+def configure_completed_trades_sheet(ticker):
+
+
+    # complete
+    def add_to_sheet(data_list):
+        print(data_list)
+        print(len(data_list))
+        values_list = completed_trades_sheet.col_values(1)
+        if (len(values_list) == 1):
+            cell_list = completed_trades_sheet.range('A2:AB2')
+            counter = 0
+            for cell in cell_list:
+                cell.value = data_list[counter]
+                counter += 1
+
+            completed_trades_sheet.update_cells(cell_list)
+        else:
+            counter = 0
+            next_available_row = len(values_list)
+            cell_list = completed_trades_sheet.range('A' + str(next_available_row) + ':AB' + str(next_available_row))
+            print(cell_list)
+            counter = 0
+            for cell in cell_list:
+                cell.value = data_list[counter]
+                counter += 1
+
+            completed_trades_sheet.update_cells(cell_list)
+
+    # complete
+    def initialise_sheet():
+        new_sheet = sh.add_worksheet(title="Completed Trades", rows="1000", cols="1000")
+        row_1 = [
+                    'Trade ID', 
+                    'Unique Buy IDs', 
+                    'Unique Sell IDs',
+                    'Type',
+                    'Coin',
+                    'P/L BTC',
+                    'P/L USD',
+                    'Amount',
+                    'Total Cost BTC',
+                    'Total Cost USD',
+                    'Total Sale BTC',
+                    'Total Sale USD',
+                    'Average Buy Price BTC',
+                    'Average Buy Price USD',
+                    'Average Sell Price BTC',
+                    'Average Sell Price USD',
+                    'Most Recent Buy Date',
+                    'First Sell Date',
+                    'Trade Duration',
+                    'Capital Gain? (Canada)',
+                    'Buy Commission BTC',
+                    'Buy Commission USD',
+                    'Sell Commission BTC',
+                    'Sell Comission USD',
+                    'Total Commission Cost BTC',
+                    'Total Commission Cost USD',
+                    'Exchanges Used',
+                    'Notes'
+                ]
+
+        counter = 0
+        cell_list = new_sheet.range('A1:AB1')
+        for cell in cell_list:
+            cell.value = row_1[counter]
+            counter += 1
+
+        new_sheet.update_cells(cell_list)
+
+    # complete
+    def fetch_columns_of_id(trade_id):
+        ''' returns a list of two lists, first list is buy columns (for row 3-19 of ticker sheet), second list is sell columns (row 24 to 34 of tickers sheet) '''
+        buy_columns = []
+        sell_columns = []
+        buy_section = current_tickers_sheet.row_values(3)
+        counter = 0
+        for i in buy_section:
+            if i == trade_id:
+                buy_columns.append(alphabet[counter])
+
+            counter += 1
+
+        sell_section = current_tickers_sheet.row_values(24)
+        counter = 0
+        for i in sell_section:
+            if i == trade_id:
+                sell_columns.append(alphabet[counter])
+
+            counter += 1
+
+        buy_and_sell_columns = []
+        buy_and_sell_columns.append(buy_columns)
+        buy_and_sell_columns.append(sell_columns)
+        return buy_and_sell_columns
+
+    # complete
+    def fetch_buy_id(trade_id, buy_columns):
+        buy_ids = []
+        for i in buy_columns:
+            data = current_tickers_sheet.acell(str(i) + '2').value
+            buy_ids.append(data)
+
+        return buy_ids
+
+    # complete
+    def fetch_raw_sell_id(trade_id, sell_columns):
+        sell_ids = []
+        for i in sell_columns:
+            data = current_tickers_sheet.acell(str(i) + '23').value
+            sell_ids.append(data)
+
+        return sell_ids
+
+    # complete
+    def get_amount(trade_id, is_unique, buy_cols):
+        ''' this function should run a check to make sure the sum of the sell amounts equals the buy amount to avoid fuck ups later'''
+        # for now we'll run it assuming its right and add the check later 
+        if (is_unique == True):
+            val = current_tickers_sheet.acell(str(buy_cols[0]) + '5').value
+            return val
+        elif (is_unique == False):
+            total = 0
+            for i in buy_cols:
+                val = current_tickers_sheet.acell(str(i) + '5').value
+                total += float(val)
+
+            return str(total)
+        else:
+            print('Error, is_unique variable neither true or false.')
+
+    # complete
+    def calculate_total_cost(trade_id, is_unique, pair, buy_cols):
+        ''' again, there should be some additional checks here to make sure the totals are the same as the amounts * the prices ''' 
+        if (pair == 'BTC'):
+            row = '8'
+        elif (pair == 'USD'):
+            row = '9'
+        else:
+            print('Error, pair entered is neither BTC or USD')
+            stop_program()
+
+        if (is_unique == True):
+            val = current_tickers_sheet.acell(str(buy_cols[0]) + row).value
+            return val
+        elif (is_unique == False):
+            total = 0
+            for i in buy_cols:
+                val = current_tickers_sheet.acell(str(i) + row).value
+                total += float(val)
+
+            return str(total)
+        else:
+            print('Error, is_unique is neither True or False')
+            stop_program()
+
+    # complete
+    def calculate_total_sale(trade_id, is_unique, pair, sell_cols):
+        ''' again, there should be some additional checks here to make sure the totals are the same as the amounts * the prices ''' 
+        if (pair == 'BTC'):
+            row = '30'
+        elif (pair == 'USD'):
+            row = '31'
+        else:
+            print('Error, pair entered is neither BTC or USD')
+            stop_program()
+
+        if (is_unique == True):
+            val = current_tickers_sheet.acell(str(sell_cols[0]) + row).value
+            return val
+        elif (is_unique == False):
+            total = 0
+            for i in sell_cols:
+                val = current_tickers_sheet.acell(str(i) + row).value
+                total += float(val)
+
+            return str(total)
+        else:
+            print('Error, is_unique is neither True or False')
+            stop_program()
+
+    def fetch_recent_buy_date(trade_id, is_unique, buy_cols):
+        return 1
+
+    def fetch_first_sell_date(trade_id, is_unique, sell_cols):
+        return 1
+
+    def calculate_trade_duration(most_recent_buy_date, first_sell_date, buy_cols, sell_cols):
+        return 1
+
+    def calculate_capital_gain(trade_duration):
+        return 1
+
+    def calculate_buy_commission():
+        return 1
+
+    def calculate_sell_commission():
+        return 1
+
+    def fetch_exchanges_used(trade_id, is_unique, buy_cols, sell_cols):
+        list_of_exchanges = ['Binance', 'Bittrex', 'Coinbase']
+        return list_of_exchanges
+
+    def fetch_notes(trade_id, is_unique, buy_cols, sell_cols):
+        return 'notes'
+
+    def execute(list_of_ids, is_unique):
+        if is_unique == True:
+            print('Executing Instances of Trade IDs that Appear Once')
+        elif is_unique == False:
+            print('Executing Instances of Trade IDs that Appear Multiple Times')
+        else:
+            print('Error, is_unique neither True or False.')
+        for i in list_of_ids:
+            buy_cols = (fetch_columns_of_id(i))[0]
+            sell_cols = (fetch_columns_of_id(i))[1]
+            trade_id = i
+            unique_buy_id = fetch_buy_id(i, buy_cols)
+            unique_sell_id = fetch_raw_sell_id(i, sell_cols)
+            trade_type = 'long'
+            coin = ticker
+            amount = get_amount(trade_id, is_unique, buy_cols)
+            most_recent_buy_date = fetch_recent_buy_date(trade_id, is_unique, buy_cols)
+            first_sell_date = fetch_first_sell_date(trade_id, is_unique, sell_cols)
+            trade_duration = calculate_trade_duration(most_recent_buy_date, first_sell_date, buy_cols, sell_cols)
+            capital_gain = calculate_capital_gain(trade_duration)
+            buy_commission_btc = calculate_buy_commission()
+            buy_commission_usd = calculate_buy_commission()
+            sell_commission_btc = calculate_sell_commission()
+            sell_commission_usd = calculate_sell_commission()
+            total_commission_btc = buy_commission_btc + sell_commission_btc
+            total_commission_usd = buy_commission_usd + sell_commission_usd
+            total_cost_btc = float(calculate_total_cost(trade_id, is_unique, 'BTC', buy_cols)) - buy_commission_btc
+            total_cost_usd = float(calculate_total_cost(trade_id, is_unique, 'USD', buy_cols)) - buy_commission_usd
+            total_sale_btc = float(calculate_total_sale(trade_id, is_unique, 'BTC', sell_cols)) - sell_commission_btc
+            total_sale_usd = float(calculate_total_sale(trade_id, is_unique, 'USD', sell_cols)) - sell_commission_usd
+            p_l_btc = total_sale_btc - total_cost_btc
+            p_l_usd = total_sale_usd - total_cost_usd
+            average_buy_price_btc = float(total_cost_btc) / float(amount)
+            average_buy_price_usd = float(total_cost_usd) / float(amount)
+            average_sell_price_btc = float(total_sale_btc) / float(amount)
+            average_sell_price_usd = float(total_sale_usd) / float(amount)
+            exchanges_used = fetch_exchanges_used(trade_id, is_unique, buy_cols, sell_cols)
+            notes = fetch_notes(trade_id, is_unique, buy_cols, sell_cols)
+            data_list = [
+                        str(unique_buy_id),
+                        str(unique_sell_id),
+                        trade_id,
+                        trade_type,
+                        coin,
+                        p_l_btc,
+                        p_l_usd,
+                        amount,
+                        total_cost_btc,
+                        total_cost_usd,
+                        total_sale_btc,
+                        total_sale_usd,
+                        average_buy_price_btc,
+                        average_buy_price_usd,
+                        average_sell_price_btc,
+                        average_sell_price_usd,
+                        most_recent_buy_date,
+                        first_sell_date,
+                        trade_duration,
+                        capital_gain,
+                        buy_commission_btc,
+                        buy_commission_usd,
+                        sell_commission_btc,
+                        sell_commission_usd,
+                        total_commission_btc,
+                        total_commission_usd,
+                        str(exchanges_used),
+                        str(notes)
+                        ]
+
+            success = add_to_sheet(data_list)
+            if (success == True):
+                print('Successfully added ' + str(i) + ' to completed trades.' ) # can also add other info here such as 'this amount, at this time, at this p/l'
+
+    current_tickers_sheet = sh.worksheet(ticker)
+    values_list = current_tickers_sheet.row_values(26)
+    not_processed_cols = [] # make a list columns that have in_completed_trades status as false
+    counter = 1
+    for i in values_list:
+        if i == 'False':
+            not_processed_cols.append(counter)
+        
+        counter += 1
+
+    a = []  
+    for i in not_processed_cols:
+        values_list = current_tickers_sheet.col_values(i)
+        a.append(values_list[23])
+
+    singular_ids = list(set([i for i in a if a.count(i)==1])) # get ids that appear only once 
+    multiple_ids = list(set([i for i in a if a.count(i)>1])) # get ids that appear more than once 
+    execute(singular_ids, False)
+    execute(multiple_ids, True)
+    # configure_live_trades_sheet(ticker)
+    ''' 
+    to do: 
+    1. completed trade sheet should be flipped so it runs downwards vertically, not horizontally as it will get full up fast. 
     '''
 
-    holdings_after_sale = 0
-    if holdings_after_sale == 0:
-        delete_ticker_from_live_trade_if_holdings_are_zero(ticker)
-    pass
+
 
 
 ''' ---------------------------------------------------------------------- ''' 
@@ -1166,11 +1448,11 @@ def configure_sell_trade(ticker):
 
 # complete
 def check_to_add_another_trade():
-    response = input('Do you want to add another trade?\n Y or N...\n' )
+    response = input('Do you want to add another trade?\n 1. Yes \n 2. No\n' )
     response = str(response).upper()
-    if response == 'N':
+    if response == '2':
         print('response is no, no new trade to be added')
-    elif response == 'Y':
+    elif response == '1':
         print('response is yes, new trade to be added')
         new_trade_meta()
 
@@ -1225,7 +1507,8 @@ def delete_ticker_from_live_trade_if_holdings_are_zero(ticker):
         the live trades also needs to remove the ticker so as not to confuse the portfolio page '''
     pass 
 
-
+def stop_program():
+    print('Stopping Programme')
 
 ''' --------------------------------------------------------- ''' 
 ''' B O N U S    F E A T U R E S''' 
@@ -1255,6 +1538,12 @@ def display_stratagy_reminder():
     pass
 
 
+def delete_all_data():
+    pass
+
+
+
+
 
 
 ''' --------------------------------------------------------- ''' 
@@ -1262,9 +1551,9 @@ def display_stratagy_reminder():
 
 
 ''' 
-odd jobs: 
+To Do: 
 
-1) When adding BTC trade, set BTC price as default to 1. 
+1) When adding new sell, check the sell amount doesn't exceed the live buy amounts minus the live sell amounts 
 2) Portfolio Seems to Load twice when should only do once. 
 3) create a 'delete all data' function. This should clear (i) the portfolio sheet, (ii) the live trades sheet, 
     (iii) each ticker sheet 
@@ -1273,10 +1562,16 @@ odd jobs:
 5) Total BTC and Total USD in each tickers sheet will need to include the commission to the totals. 
 6) In each ticker sheet, there could be a 'reason for sell' row with options (i) stop loss hit, (ii) target hit, (iii) altseason conditions not met 
 7) Alerts that sends email when set. Alerts should be set in the main menu. 
-
+8) Add a 'processed and added to completed trades' boolean in each tickers sheet. This will make sure all matches trades are processed. 
+9) See if there's a google sheets library that allows you to change the UI of a sheet. If so, (i) change the text alignment to left on all tickers sheets.
+    next, (ii) change any fields with 'COMPLETED' and 'LIVE' to different highlights. (iii) Change the currency to dollar and BTC in all sheets, 
+    next (iv) reorder the tickers sheets to be after all the main sheets and in alphabetical order, 
+10) If nothing is entered for notes, set default to 'No Notes Entered'
+11) Extend alphabet variable so it goes up to ZZ (do this programmatically will be a good interview test)
+12) It might be an idea to add some checks in place that data equals each other to avoid major fuck ups later. For example, when adding a trade
+    to completed trades, when checking the amount, a function should check whether the buy amount matches with the sell amount. 
 '''
 
 # new_trade_meta()
-
-add_sell_trade()
+configure_completed_trades_sheet('XLM')
 
