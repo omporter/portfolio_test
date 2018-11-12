@@ -1,6 +1,5 @@
 import time
 
-
 from main import new_trade_meta, display_bonus_info
 from main import start_up_jobs
 
@@ -21,11 +20,11 @@ while True:
     print('Bearish: 33%')
     time.sleep(2)
 
-    user_input = input("Any New Trades to Add Today? \n 1. Y \n 2. N \n\n ...")
+    user_input = input("Any New Trades to Add Today? \n 1. Yes \n 2. No \n")
     if user_input == 'Y' or 'y' or '1' or 1:
-        option_1()
+        new_trade_meta()
     elif user_input == 'N' or 'n' or '2' or 2:
-        option_2()
+        display_bonus_info()
     elif user_input != 'Y' or 'y' or '1' or 1 or 'N' or 'n' or '2' or '2':
         print('Goodbye...')
         break

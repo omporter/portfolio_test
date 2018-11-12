@@ -1,8 +1,6 @@
 ''' ---------------------------------------------------------------- ''' 
 ''' D O C U M E N T     S T R U C T U R E ''' 
 
-
-
 ''' 
 SECTION 1: SETUP 
 SECTION 2: GLOBAL VARIABLES 
@@ -13,12 +11,6 @@ SECTION 6: MISCELLANIOUS FUNCTIONS
 SECTION 7: WORKSHOP AND EXECUTE
 '''
 
-
-
-
-
-
-
 ''' ---------------------------------------------------------------- ''' 
 ''' S E T U P ''' 
 
@@ -28,7 +20,6 @@ import datetime
 import gspread
 
 from oauth2client.service_account import ServiceAccountCredentials
-
 
 
 # google sheets api 
@@ -49,11 +40,6 @@ sh = gc.open("test_portfolio")
 url = 'https://api.coinmarketcap.com/v2/ticker/'
 response = requests.get(url)
 api = json.loads(response.text)
-
-
-
-
-
 
 
 ''' ---------------------------------------------------------------- ''' 
@@ -95,9 +81,10 @@ exchange_names_which_contain_coin_tickers = [
 # to do 
 def start_up_jobs():
     # step 1: update portfolio sheet  
-    update_portfolio_sheet()
+    result = update_portfolio_sheet()
     # step 2: 
-    update_live_trades_live_data()
+    if result == True: # checks if portfolio sheet is empty 
+        update_live_trades_live_data()
     # step 3: 
     update_daily_tracker()
 
@@ -158,11 +145,8 @@ def update_portfolio_sheet():
     populate_portfolio_holdings()
     populate_portfolio_btc_totals()
     populate_portfolio_usd_totals()
-    populate_grand_total_and_percentage()
-    print('Portfolio Sheet Refreshed')
-
-
-
+    result = populate_grand_total_and_percentage()
+    return result
 
 
 
@@ -191,41 +175,43 @@ def clear_portfolio_sheet():
 def scan_tickers_from_live_trades_sheet():
     ''' get tickers of all live positions in cmc, then paste them in alphabetical order with btc, fiat, ltc, eth and xmr first, followed by alphabetical ordering''' 
     values_list = live_trades_sheet.row_values(2)  # step1: from live trades sheet, scan all of row 2 and append to list of tickers 
-    values_list.pop(0)
-    # step2: reorder list with (i) btc, (ii) usd, (iii) ltc, (iv) eth, (v) xmr, then rest in alphabetical order. 
-    # step3: in portfolio sheet, in column b, from rows 3 to the n (where n is length of tickers list), paste in tickers. 
-    cell_list = portfolio_sheet.range('B3:B' + str((len(values_list)) + 2 ))
-    counter = 0
-    for cell in cell_list:
-        cell.value = values_list[counter]
-        counter += 1 ##
+    if (len(values_list) > 1):
+        values_list.pop(0)
+        # step2: reorder list with (i) btc, (ii) usd, (iii) ltc, (iv) eth, (v) xmr, then rest in alphabetical order. 
+        # step3: in portfolio sheet, in column b, from rows 3 to the n (where n is length of tickers list), paste in tickers. 
+        cell_list = portfolio_sheet.range('B3:B' + str((len(values_list)) + 2 ))
+        counter = 0
+        for cell in cell_list:
+            cell.value = values_list[counter]
+            counter += 1 ##
 
-    portfolio_sheet.update_cells(cell_list)
+        portfolio_sheet.update_cells(cell_list)
 
 # complete
 def populate_token_name():
     # step 1: select tickers from column b 
     values_list = portfolio_sheet.col_values(2)
-    values_list.pop(0)
-    values_list.pop(0)
-    # step 2: manually map tickers to token names
-    # step 3: from list of tickers, generate list of token names 
-    token_name_list = []
-    for i in values_list:
-        if i in coin_url_extentions:
-            token_name_list.append(coin_url_extentions[i])
-        elif i not in coin_url_extentions:
-            token_name_list.append('undefined ticker')
+    if (len(values_list) > 1):
+        values_list.pop(0)
+        values_list.pop(0)
+        # step 2: manually map tickers to token names
+        # step 3: from list of tickers, generate list of token names 
+        token_name_list = []
+        for i in values_list:
+            if i in coin_url_extentions:
+                token_name_list.append(coin_url_extentions[i])
+            elif i not in coin_url_extentions:
+                token_name_list.append('undefined ticker')
 
-    # step 4: paste token_name_list to column a of portfolio 
-    x = (len(token_name_list) + 2)
-    cell_list = portfolio_sheet.range('A3:A' + str(x))
-    counter = 0
-    for cell in cell_list:
-        cell.value = token_name_list[counter]
-        counter += 1
+        # step 4: paste token_name_list to column a of portfolio 
+        x = (len(token_name_list) + 2)
+        cell_list = portfolio_sheet.range('A3:A' + str(x))
+        counter = 0
+        for cell in cell_list:
+            cell.value = token_name_list[counter]
+            counter += 1
 
-    portfolio_sheet.update_cells(cell_list)
+        portfolio_sheet.update_cells(cell_list)
 
 # complete 
 def populate_portfolio_prices():
@@ -237,150 +223,159 @@ def populate_portfolio_prices():
     ''' 
     # step1: fetch all tickers as a list 
     token_list = portfolio_sheet.col_values(1)
-    # step2: make list of api links 
-    links = []
-    for i in token_list:
-        if (i == 'undefined ticker'):
-            links.append('undefined_ticker')
-        else:
-            links.append('https://api.coinmarketcap.com/v1/ticker/' + str(i))
+    if len(token_list) > 1:
+        # step2: make list of api links 
+        links = []
+        for i in token_list:
+            if (i == 'undefined ticker'):
+                links.append('undefined_ticker')
+            else:
+                links.append('https://api.coinmarketcap.com/v1/ticker/' + str(i))
 
-    links.pop(0)
-    links.pop(0)
-    # step3: make list of data from api links
-    main_list = []
-    counter_1 = 0
-    for each_link in links:
-        if (each_link == 'undefined_ticker'): 
-            main_list.append('0')
-            main_list.append('0')
-        elif (each_link != 'undefined_ticker'):
-            if counter_1 < len(links):
-                local_request = requests.get(each_link)
-                local_api = json.loads(local_request.text)
-                main_list.append(local_api[0]['price_btc'])
-                main_list.append(local_api[0]['price_usd'])
-                counter_1 += 1 
+        links.pop(0)
+        links.pop(0)
+        # step3: make list of data from api links
+        main_list = []
+        counter_1 = 0
+        for each_link in links:
+            if (each_link == 'undefined_ticker'): 
+                main_list.append('0')
+                main_list.append('0')
+            elif (each_link != 'undefined_ticker'):
+                if counter_1 < len(links):
+                    local_request = requests.get(each_link)
+                    local_api = json.loads(local_request.text)
+                    main_list.append(local_api[0]['price_btc'])
+                    main_list.append(local_api[0]['price_usd'])
+                    counter_1 += 1 
 
-    # # step4: print to sheet 
-    x = len(token_list)
-    local_range = 'C3:D' + (str(x)) 
-    cell_list = portfolio_sheet.range(local_range)
-    counter_2 = 0
-    for cell in cell_list:
-        cell.value = main_list[counter_2]
-        counter_2 += 1
+        # # step4: print to sheet 
+        x = len(token_list)
+        local_range = 'C3:D' + (str(x)) 
+        cell_list = portfolio_sheet.range(local_range)
+        counter_2 = 0
+        for cell in cell_list:
+            cell.value = main_list[counter_2]
+            counter_2 += 1
 
-    portfolio_sheet.update_cells(cell_list)
+        portfolio_sheet.update_cells(cell_list)
 
 # complete
 def populate_portfolio_holdings():
     values_list = live_trades_sheet.row_values(3)     # get holdings from live trades 
-    values_list.pop(0)
-    x = len(values_list) + 2     # paste to portfolio holdings column 
-    cell_list = portfolio_sheet.range('E3:E' + str(x))
-    counter = 0
-    for cell in cell_list:
-        cell.value = values_list[counter]
-        counter += 1
+    if len(values_list) > 1:
+        values_list.pop(0)
+        x = len(values_list) + 2     # paste to portfolio holdings column 
+        cell_list = portfolio_sheet.range('E3:E' + str(x))
+        counter = 0
+        for cell in cell_list:
+            cell.value = values_list[counter]
+            counter += 1
 
-    portfolio_sheet.update_cells(cell_list)
+        portfolio_sheet.update_cells(cell_list)
 
 # complete
 def populate_portfolio_btc_totals():
     coin_price_btc = portfolio_sheet.col_values(3)
-    coin_price_btc.pop(0)
-    coin_price_btc.pop(0)
-    processed1_coin_price_btc = []
-    for i in coin_price_btc:
-        processed1_coin_price_btc.append(i.replace("฿", ""))
-    
-    processed2_coin_price_btc = []
-    for i in processed1_coin_price_btc:
-        processed2_coin_price_btc.append(i.replace(",", ""))
+    if len(coin_price_btc) > 1:
+        coin_price_btc.pop(0)
+        coin_price_btc.pop(0)
+        processed1_coin_price_btc = []
+        for i in coin_price_btc:
+            processed1_coin_price_btc.append(i.replace("฿", ""))
+        
+        processed2_coin_price_btc = []
+        for i in processed1_coin_price_btc:
+            processed2_coin_price_btc.append(i.replace(",", ""))
 
-    coin_price_btc = list(map(float, processed2_coin_price_btc))
-    holdings = portfolio_sheet.col_values(5)
-    holdings.pop(0)
-    holdings.pop(0)
-    holdings = list(map(float, holdings))
-    total_btc = [a*b for a,b in zip(coin_price_btc,holdings)]
-    x = len(total_btc) + 2
-    cell_list = portfolio_sheet.range('F3:F' + str(x))
-    counter = 0
-    for cell in cell_list:
-        cell.value = total_btc[counter]
-        counter += 1
+        coin_price_btc = list(map(float, processed2_coin_price_btc))
+        holdings = portfolio_sheet.col_values(5)
+        holdings.pop(0)
+        holdings.pop(0)
+        holdings = list(map(float, holdings))
+        total_btc = [a*b for a,b in zip(coin_price_btc,holdings)]
+        x = len(total_btc) + 2
+        cell_list = portfolio_sheet.range('F3:F' + str(x))
+        counter = 0
+        for cell in cell_list:
+            cell.value = total_btc[counter]
+            counter += 1
 
-    portfolio_sheet.update_cells(cell_list)
+        portfolio_sheet.update_cells(cell_list)
 
 # complete
 def populate_portfolio_usd_totals():
     coin_price_usd = portfolio_sheet.col_values(4)
-    coin_price_usd.pop(0)
-    coin_price_usd.pop(0)
-    a = []
-    for i in coin_price_usd:
-        a.append(i.replace(",", ""))
+    if(len(coin_price_usd) > 1):
+        coin_price_usd.pop(0)
+        coin_price_usd.pop(0)
+        a = []
+        for i in coin_price_usd:
+            a.append(i.replace(",", ""))
 
-    b = []
-    for i in a:
-        b.append(i.replace("$", ""))
+        b = []
+        for i in a:
+            b.append(i.replace("$", ""))
 
-    coin_price_usd = list(map(float, b))
-    holdings = portfolio_sheet.col_values(5)
-    holdings.pop(0)
-    holdings.pop(0)
-    holdings = list(map(float, holdings))
-    total_usd = [a*b for a,b in zip(coin_price_usd,holdings)]
-    x = len(total_usd) + 2
-    cell_list = portfolio_sheet.range('G3:G' + str(x))
-    counter = 0
-    for cell in cell_list:
-        cell.value = total_usd[counter]
-        counter += 1
+        coin_price_usd = list(map(float, b))
+        holdings = portfolio_sheet.col_values(5)
+        holdings.pop(0)
+        holdings.pop(0)
+        holdings = list(map(float, holdings))
+        total_usd = [a*b for a,b in zip(coin_price_usd,holdings)]
+        x = len(total_usd) + 2
+        cell_list = portfolio_sheet.range('G3:G' + str(x))
+        counter = 0
+        for cell in cell_list:
+            cell.value = total_usd[counter]
+            counter += 1
 
-    portfolio_sheet.update_cells(cell_list)
+        portfolio_sheet.update_cells(cell_list)
 
 # complete 
 def populate_grand_total_and_percentage():
-    total_btc = portfolio_sheet.col_values(6)     # populates total btc 
-    total_btc.pop(0)
-    total_btc.pop(0)
-    a = []
-    for i in total_btc:
-        a.append(i.replace("฿", ""))
+    total_btc = portfolio_sheet.col_values(6)
+    if (len(total_btc) > 1):     # populates total btc 
+        total_btc.pop(0)
+        total_btc.pop(0)
+        a = []
+        for i in total_btc:
+            a.append(i.replace("฿", ""))
 
-    total_btc = list(map(float, a))
-    total_btc_sum = sum(total_btc)
-    portfolio_sheet.update_acell('J3', total_btc_sum)
-    total_usd = portfolio_sheet.col_values(7)     # populates total usd 
-    total_usd.pop(0)
-    total_usd.pop(0)
-    b = []
-    for i in total_usd:
-        b.append(i.replace(",", ""))
+        total_btc = list(map(float, a))
+        total_btc_sum = sum(total_btc)
+        portfolio_sheet.update_acell('J3', total_btc_sum)
+        total_usd = portfolio_sheet.col_values(7)     # populates total usd 
+        total_usd.pop(0)
+        total_usd.pop(0)
+        b = []
+        for i in total_usd:
+            b.append(i.replace(",", ""))
 
-    c = []
-    for i in b:
-        c.append(i.replace("$", ""))
+        c = []
+        for i in b:
+            c.append(i.replace("$", ""))
 
-    total_usd = list(map(float, c))
-    total_usd_sum = sum(total_usd)
-    portfolio_sheet.update_acell('K3', total_usd_sum)
-    percentage = []     # step 3) calculate percentages
-    for i in total_btc:
-        percentage.append(i / total_btc_sum)
+        total_usd = list(map(float, c))
+        total_usd_sum = sum(total_usd)
+        portfolio_sheet.update_acell('K3', total_usd_sum)
+        percentage = []     # step 3) calculate percentages
+        for i in total_btc:
+            percentage.append(i / total_btc_sum)
 
-    x = len(total_btc) + 2
-    cell_list = portfolio_sheet.range('H3:H' + str(x))
-    counter = 0
-    for cell in cell_list:
-        cell.value = percentage[counter]
-        counter += 1
+        x = len(total_btc) + 2
+        cell_list = portfolio_sheet.range('H3:H' + str(x))
+        counter = 0
+        for cell in cell_list:
+            cell.value = percentage[counter]
+            counter += 1
 
-    portfolio_sheet.update_cells(cell_list)
-
+        portfolio_sheet.update_cells(cell_list)
+        print('Portfolio Sheet Refreshed')
+        return True
+    else:
+        print('The Portfolio Sheet is Empty.')
+        return False
 
 ''' live trade update ''' 
 # complete 
@@ -476,7 +471,6 @@ def update_live_trades_live_data():
 # to do 
 def reorder_live_trades():
     pass
-
 
 ''' new buy trade ''' 
 # complete 
@@ -717,7 +711,6 @@ def configure_live_trades_sheet(ticker):
             print('New trade processed and included in live trades sheet.')
 
 ''' new sell trade '''
-
 # to do 
 def add_sell_trade():
 
@@ -1048,31 +1041,25 @@ def add_sell_trade():
 # to do 
 def configure_completed_trades_sheet(ticker):
 
+    def check_for_completed_trades():
+        ''' conditions for running all this code is if row 25 is 'COMPLETED' and row 26 is 'False' ''' 
+        row_25 = current_tickers_sheet.row_values(25)
+        row_26 = current_tickers_sheet.row_values(26)
+        for x, y in zip(row_25, row_26):
+            if (x == 'COMPLETE') and (y == 'False'):
+                return True
 
     # complete
     def add_to_sheet(data_list):
-        print(data_list)
-        print(len(data_list))
-        values_list = completed_trades_sheet.col_values(1)
-        if (len(values_list) == 1):
-            cell_list = completed_trades_sheet.range('A2:AB2')
-            counter = 0
-            for cell in cell_list:
-                cell.value = data_list[counter]
-                counter += 1
+        next_available_row = (len(completed_trades_sheet.col_values(1)) + 1)
+        cell_list = completed_trades_sheet.range('A' + str(next_available_row) + ':AB' + str(next_available_row))
+        counter = 0
+        for cell in cell_list:
+            cell.value = data_list[counter]
+            counter += 1
 
-            completed_trades_sheet.update_cells(cell_list)
-        else:
-            counter = 0
-            next_available_row = len(values_list)
-            cell_list = completed_trades_sheet.range('A' + str(next_available_row) + ':AB' + str(next_available_row))
-            print(cell_list)
-            counter = 0
-            for cell in cell_list:
-                cell.value = data_list[counter]
-                counter += 1
-
-            completed_trades_sheet.update_cells(cell_list)
+        completed_trades_sheet.update_cells(cell_list)
+        return True
 
     # complete
     def initialise_sheet():
@@ -1141,6 +1128,10 @@ def configure_completed_trades_sheet(ticker):
         buy_and_sell_columns.append(buy_columns)
         buy_and_sell_columns.append(sell_columns)
         return buy_and_sell_columns
+
+    def close_in_tickers(trade_id, sell_cols):
+        for i in sell_cols:
+            current_tickers_sheet.update_acell(str(i) + '26', 'True')
 
     # complete
     def fetch_buy_id(trade_id, buy_columns):
@@ -1290,6 +1281,7 @@ def configure_completed_trades_sheet(ticker):
             average_sell_price_usd = float(total_sale_usd) / float(amount)
             exchanges_used = fetch_exchanges_used(trade_id, is_unique, buy_cols, sell_cols)
             notes = fetch_notes(trade_id, is_unique, buy_cols, sell_cols)
+
             data_list = [
                         str(unique_buy_id),
                         str(unique_sell_id),
@@ -1323,39 +1315,38 @@ def configure_completed_trades_sheet(ticker):
 
             success = add_to_sheet(data_list)
             if (success == True):
+                close_in_tickers(i, sell_cols)
                 print('Successfully added ' + str(i) + ' to completed trades.' ) # can also add other info here such as 'this amount, at this time, at this p/l'
 
     current_tickers_sheet = sh.worksheet(ticker)
-    values_list = current_tickers_sheet.row_values(26)
-    not_processed_cols = [] # make a list columns that have in_completed_trades status as false
-    counter = 1
-    for i in values_list:
-        if i == 'False':
-            not_processed_cols.append(counter)
-        
-        counter += 1
+    if check_for_completed_trades() == True:
+        values_list = current_tickers_sheet.row_values(26)
+        not_processed_cols = [] # make a list columns that have in_completed_trades status as false
+        counter = 1
+        for i in values_list:
+            if i == 'False':
+                not_processed_cols.append(counter)
+            
+            counter += 1
 
-    a = []  
-    for i in not_processed_cols:
-        values_list = current_tickers_sheet.col_values(i)
-        a.append(values_list[23])
+        a = []  
+        for i in not_processed_cols:
+            values_list = current_tickers_sheet.col_values(i)
+            a.append(values_list[23])
 
-    singular_ids = list(set([i for i in a if a.count(i)==1])) # get ids that appear only once 
-    multiple_ids = list(set([i for i in a if a.count(i)>1])) # get ids that appear more than once 
-    execute(singular_ids, False)
-    execute(multiple_ids, True)
-    # configure_live_trades_sheet(ticker)
+        singular_ids = list(set([i for i in a if a.count(i)==1])) # get ids that appear only once 
+        multiple_ids = list(set([i for i in a if a.count(i)>1])) # get ids that appear more than once 
+        execute(singular_ids, True)
+        execute(multiple_ids, False)
+        configure_live_trades_sheet(ticker)
     ''' 
     to do: 
     1. completed trade sheet should be flipped so it runs downwards vertically, not horizontally as it will get full up fast. 
     '''
 
 
-
-
 ''' ---------------------------------------------------------------------- ''' 
 ''' M I S C E L L A N I O U S    F U N C T I O N S  '''
-
 
 # complete
 def check_to_add_another_trade():
@@ -1482,7 +1473,4 @@ To Do:
 12) It might be an idea to add some checks in place that data equals each other to avoid major fuck ups later. For example, when adding a trade
     to completed trades, when checking the amount, a function should check whether the buy amount matches with the sell amount. 
 '''
-
-# new_trade_meta()
-configure_completed_trades_sheet('XLM')
 
