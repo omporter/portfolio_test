@@ -159,7 +159,7 @@ def update_portfolio_sheet():
     populate_portfolio_btc_totals()
     populate_portfolio_usd_totals()
     populate_grand_total_and_percentage()
-    print('portfolio sheet updated from scratch')
+    print('Portfolio Sheet Refreshed')
 
 
 
@@ -173,23 +173,13 @@ def update_portfolio_sheet():
 ''' portfolio''' 
 # complete 
 def clear_portfolio_sheet():
-    
-
-    # step 1: delete all fields in data sheet
-    cell_list = portfolio_sheet.range('A1:Z1000')
-
+    cell_list = portfolio_sheet.range('A1:Z1000') # step 1: delete all fields in data sheet
     for cell in cell_list:
         cell.value = ''
 
-    portfolio_sheet.update_cells(cell_list)
-
-
-    # step 2:   set row 1 values A-H as header_list 
-
+    portfolio_sheet.update_cells(cell_list)  # step 2:   set row 1 values A-H as header_list 
     header_list = ['Token', 'Ticker', 'Coin Price BTC', 'Coin Price USD', 'Holdings', 'Total BTC', 'Total USD', 'Percentage of Total Portfolio', '', 'Total Value BTC', 'Total Value USD']
-
     cell_list = portfolio_sheet.range('A1:K1')
-
     counter = 0
     for cell in cell_list:
         cell.value = header_list[counter]
@@ -200,18 +190,11 @@ def clear_portfolio_sheet():
 # complete 
 def scan_tickers_from_live_trades_sheet():
     ''' get tickers of all live positions in cmc, then paste them in alphabetical order with btc, fiat, ltc, eth and xmr first, followed by alphabetical ordering''' 
-    
-
-    # step1: from live trades sheet, scan all of row 2 and append to list of tickers 
-    values_list = live_trades_sheet.row_values(2)
+    values_list = live_trades_sheet.row_values(2)  # step1: from live trades sheet, scan all of row 2 and append to list of tickers 
     values_list.pop(0)
-
-
     # step2: reorder list with (i) btc, (ii) usd, (iii) ltc, (iv) eth, (v) xmr, then rest in alphabetical order. 
-
     # step3: in portfolio sheet, in column b, from rows 3 to the n (where n is length of tickers list), paste in tickers. 
     cell_list = portfolio_sheet.range('B3:B' + str((len(values_list)) + 2 ))
-
     counter = 0
     for cell in cell_list:
         cell.value = values_list[counter]
@@ -221,14 +204,11 @@ def scan_tickers_from_live_trades_sheet():
 
 # complete
 def populate_token_name():
-    
     # step 1: select tickers from column b 
     values_list = portfolio_sheet.col_values(2)
     values_list.pop(0)
     values_list.pop(0)
-
     # step 2: manually map tickers to token names
-
     # step 3: from list of tickers, generate list of token names 
     token_name_list = []
     for i in values_list:
@@ -237,13 +217,9 @@ def populate_token_name():
         elif i not in coin_url_extentions:
             token_name_list.append('undefined ticker')
 
-
     # step 4: paste token_name_list to column a of portfolio 
     x = (len(token_name_list) + 2)
     cell_list = portfolio_sheet.range('A3:A' + str(x))
-
-
-
     counter = 0
     for cell in cell_list:
         cell.value = token_name_list[counter]
@@ -259,10 +235,8 @@ def populate_portfolio_prices():
     Column C: price_btc
     Column D: price_usd
     ''' 
-
     # step1: fetch all tickers as a list 
     token_list = portfolio_sheet.col_values(1)
-
     # step2: make list of api links 
     links = []
     for i in token_list:
@@ -273,7 +247,6 @@ def populate_portfolio_prices():
 
     links.pop(0)
     links.pop(0)
-
     # step3: make list of data from api links
     main_list = []
     counter_1 = 0
@@ -289,15 +262,10 @@ def populate_portfolio_prices():
                 main_list.append(local_api[0]['price_usd'])
                 counter_1 += 1 
 
-
     # # step4: print to sheet 
-
-
     x = len(token_list)
     local_range = 'C3:D' + (str(x)) 
     cell_list = portfolio_sheet.range(local_range)
-
-
     counter_2 = 0
     for cell in cell_list:
         cell.value = main_list[counter_2]
@@ -305,50 +273,24 @@ def populate_portfolio_prices():
 
     portfolio_sheet.update_cells(cell_list)
 
-
-
-
-
-    # last_cell = portfolio_sheet.find(token_list[-1]) # get last coin name 
-    # length_of_table = last_cell.row # derrive length of table from name 
-    # local_range = 'B2:D' + str(length_of_table) 
-    # cell_list = portfolio_sheet.range(local_range) # set range based on length of table 
-    # counter_2 = 0
-    # for cell in cell_list:
-    #     if counter_2 < len(main_list):
-    #         cell.value = main_list[counter_2]
-    #         counter_2 += 1
-
-    # portfolio_sheet.update_cells(cell_list)
-
 # complete
 def populate_portfolio_holdings():
-    
-    # get holdings from live trades 
-    values_list = live_trades_sheet.row_values(3)
+    values_list = live_trades_sheet.row_values(3)     # get holdings from live trades 
     values_list.pop(0)
-
-    # paste to portfolio holdings column 
-    x = len(values_list) + 2
+    x = len(values_list) + 2     # paste to portfolio holdings column 
     cell_list = portfolio_sheet.range('E3:E' + str(x))
-
     counter = 0
     for cell in cell_list:
         cell.value = values_list[counter]
         counter += 1
 
-    # Update in batch
     portfolio_sheet.update_cells(cell_list)
 
 # complete
 def populate_portfolio_btc_totals():
-
-
     coin_price_btc = portfolio_sheet.col_values(3)
     coin_price_btc.pop(0)
     coin_price_btc.pop(0)
-
-
     processed1_coin_price_btc = []
     for i in coin_price_btc:
         processed1_coin_price_btc.append(i.replace("฿", ""))
@@ -357,21 +299,14 @@ def populate_portfolio_btc_totals():
     for i in processed1_coin_price_btc:
         processed2_coin_price_btc.append(i.replace(",", ""))
 
-
     coin_price_btc = list(map(float, processed2_coin_price_btc))
-
-
     holdings = portfolio_sheet.col_values(5)
     holdings.pop(0)
     holdings.pop(0)
     holdings = list(map(float, holdings))
-
     total_btc = [a*b for a,b in zip(coin_price_btc,holdings)]
-
-
     x = len(total_btc) + 2
     cell_list = portfolio_sheet.range('F3:F' + str(x))
-
     counter = 0
     for cell in cell_list:
         cell.value = total_btc[counter]
@@ -384,7 +319,6 @@ def populate_portfolio_usd_totals():
     coin_price_usd = portfolio_sheet.col_values(4)
     coin_price_usd.pop(0)
     coin_price_usd.pop(0)
-
     a = []
     for i in coin_price_usd:
         a.append(i.replace(",", ""))
@@ -394,18 +328,13 @@ def populate_portfolio_usd_totals():
         b.append(i.replace("$", ""))
 
     coin_price_usd = list(map(float, b))
-
     holdings = portfolio_sheet.col_values(5)
     holdings.pop(0)
     holdings.pop(0)
     holdings = list(map(float, holdings))
-
     total_usd = [a*b for a,b in zip(coin_price_usd,holdings)]
-
-
     x = len(total_usd) + 2
     cell_list = portfolio_sheet.range('G3:G' + str(x))
-
     counter = 0
     for cell in cell_list:
         cell.value = total_usd[counter]
@@ -415,8 +344,7 @@ def populate_portfolio_usd_totals():
 
 # complete 
 def populate_grand_total_and_percentage():
-    # populates total btc 
-    total_btc = portfolio_sheet.col_values(6)
+    total_btc = portfolio_sheet.col_values(6)     # populates total btc 
     total_btc.pop(0)
     total_btc.pop(0)
     a = []
@@ -426,9 +354,7 @@ def populate_grand_total_and_percentage():
     total_btc = list(map(float, a))
     total_btc_sum = sum(total_btc)
     portfolio_sheet.update_acell('J3', total_btc_sum)
-
-    # populates total usd 
-    total_usd = portfolio_sheet.col_values(7)
+    total_usd = portfolio_sheet.col_values(7)     # populates total usd 
     total_usd.pop(0)
     total_usd.pop(0)
     b = []
@@ -442,18 +368,12 @@ def populate_grand_total_and_percentage():
     total_usd = list(map(float, c))
     total_usd_sum = sum(total_usd)
     portfolio_sheet.update_acell('K3', total_usd_sum)
-
-
-    # step 3) calculate percentages
-
-    percentage = []
+    percentage = []     # step 3) calculate percentages
     for i in total_btc:
         percentage.append(i / total_btc_sum)
 
-
     x = len(total_btc) + 2
     cell_list = portfolio_sheet.range('H3:H' + str(x))
-
     counter = 0
     for cell in cell_list:
         cell.value = percentage[counter]
@@ -465,8 +385,6 @@ def populate_grand_total_and_percentage():
 ''' live trade update ''' 
 # complete 
 def update_live_trades_live_data():
-    
-
     '''
         fields to update:
             Live Price BTC
@@ -480,11 +398,7 @@ def update_live_trades_live_data():
             Unrealied P/L BTC
             Unrealised P/L USD
     '''
-
-
-
     # step 1: generate all lists 
-
     tickers = live_trades_sheet.row_values(2)
     tickers.pop(0)
 
@@ -539,7 +453,6 @@ def update_live_trades_live_data():
         counter += 1
 
     # step 4: update rows 9 to 12 
-
     conc_list = btc_prices + usd_prices + total_btc_costs + total_usd_costs
     x = alphabet[len(btc_prices)]
     cell_list = live_trades_sheet.range('B9:' + str(x) + '12')
@@ -549,9 +462,7 @@ def update_live_trades_live_data():
         counter += 1
 
     live_trades_sheet.update_cells(cell_list)
-
     # step 5: update rows 18 to 19 
-
     conc_list = unrealised_pl_btc_list + unrealised_pl_usd_list
     x = alphabet[len(btc_prices)]
     cell_list = live_trades_sheet.range('B18:' + str(x) + '19')
