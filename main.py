@@ -65,7 +65,23 @@ coin_url_extentions = {
                         'DASH': 'dash',
                         'BAT': 'basic-attention-token',
                         'EOS': 'eos', 
-                        'XLM': 'stellar'
+                        'XLM': 'stellar', 
+                        'NEO': 'neo',
+                        'FCT': 'factom',
+                        'ZEC': 'zcash',
+                        'ADA': 'cardano',
+                        'TRX': 'tron',
+                        'ONT': 'ontology',
+                        'MCO': 'monaco',
+                        'LUN': 'lunyr',
+                        'DRGN': 'dragonchain',
+                        'LSK': 'lisk',
+                        'STRAT': 'stratis',
+                        'LINK': 'chainlink',
+                        'SALT': 'salt',
+                        'PPT': 'populous',
+                        'TUSD': 'trueusd', 
+                        'XEM': 'nem'
                         }
 
 
@@ -102,8 +118,6 @@ def new_trade_meta():
 
     reorder_live_trades()
     check_to_add_another_trade()
-    update_portfolio_sheet()
-    display_bonus_info()
 
 # to do 
 def buy_trade_meta():
@@ -478,10 +492,13 @@ def add_buy_trade():
     ''' adds all the new data based on user input, then returns the ticker for live trade and completed trade functions to process '''
 
     def create_new_sheet(ticker):
-        new_sheet = sh.add_worksheet(title=ticker, rows="1000", cols="1000")
+        if ticker == 'BTC' or 'TUSD' or 'USD': # sheets api restricts max number of cells to 500k
+            new_sheet = sh.add_worksheet(title=ticker, rows="48", cols="500")
+        else:
+            new_sheet = sh.add_worksheet(title=ticker, rows="48", cols="200")
         initial_values = [
                             'BUY', 
-                            'Unique ID',
+                            'Buy ID',
                             'Trade ID',
                             'Completed',
                             'Amount',
@@ -501,8 +518,8 @@ def add_buy_trade():
                             'Notes',
                             '',
                             'SELL (matched)',
-                            'Unique ID',
-                            'Raw Sell ID', 
+                            'Buy ID',
+                            'Sell ID', 
                             'Trade ID',
                             'Completed',
                             'In Completed Trades',
@@ -516,8 +533,8 @@ def add_buy_trade():
                             'Notes',
                             '',
                             'SELL (raw)',
-                            'Unique ID',
-                            'Raw Sell ID', 
+                            'Sell ID',
+                            'Trade ID', 
                             'Completed',
                             'Amount',
                             'Price BTC',
@@ -570,10 +587,16 @@ def add_buy_trade():
             price_btc = '1'
         else:
             price_btc = input('Enter Price BTC (Live Price is ' + fetch_price_btc(ticker) + ' sats.)\n')
+        if price_btc == '':
+            price_btc = fetch_price_btc(ticker)
+            print('No Price Entered. Using Live Price of ' + str(ticker) + ' of ' + str(price_btc))
         if (ticker == 'USD'):
             price_usd = '1'
         else: 
             price_usd = input('Enter Price USD (Live Price is $' + fetch_price_usd(ticker) + ' USD.)\n')
+        if price_usd == '': # if user input is nothing 
+            price_usd = fetch_price_usd(ticker)
+            print('No Price Entered. Using Live Price of ' + str(ticker) + ' of ' + str(price_usd))
         total_btc = float(amount) * float(price_btc)
         total_usd = float(amount) * float(price_usd)
         date = str(datetime.datetime.now())
@@ -1353,9 +1376,11 @@ def check_to_add_another_trade():
     response = input('Do you want to add another trade?\n 1. Yes \n 2. No\n' )
     response = str(response).upper()
     if response == '2':
-        print('response is no, no new trade to be added')
+        print('No New Trade to be Added\n')
+        update_portfolio_sheet()
+        display_bonus_info()
     elif response == '1':
-        print('response is yes, new trade to be added')
+        print('Adding New Trade\n')
         new_trade_meta()
 
 # complete 
@@ -1417,31 +1442,34 @@ def stop_program():
 
 # to do 
 def update_daily_tracker():
-    pass
+    print('Update Daily Ticker')
 
 # to do 
 def display_global_pl():
-    pass
+    print('Display Global PL')
 
 # to do 
 def display_pl_of_current_positions():
-    pass
+    print('Display Profit Loss of Current Positions')
 
 # to do 
 def display_todays_news():
-    pass
+    print('Display Todays News')
 
 # to do 
 def display_current_sentiment():
-    pass
+    print('Current Sentiment')
 
 # to do 
 def display_stratagy_reminder():
-    pass
+    print('Stratagy Reminder')
+
+def stop_loss_alerts():
+    print('Stop Loss Alerts')
 
 
 def delete_all_data():
-    pass
+    print('Delete All Data')
 
 
 
@@ -1474,3 +1502,5 @@ To Do:
     to completed trades, when checking the amount, a function should check whether the buy amount matches with the sell amount. 
 '''
 
+
+new_trade_meta()

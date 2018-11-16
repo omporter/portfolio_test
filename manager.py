@@ -1,32 +1,21 @@
-import time
-
-from main import new_trade_meta, display_bonus_info
-from main import start_up_jobs
-
-user_input = 0
+name = 'Oliver'
+time_of_day = 'Morning'
 
 while True:
-    start_up_jobs()
-    print('\n\nGood Morning, Oliver.')
-    time.sleep(2)
-    print('The Price of Bitcoin is 6254.56 today.')
-    time.sleep(2)
-    print('The Outlook for Crypto Markets today is:')
-    time.sleep(2)
-    print('Bullish: 23%')
-    time.sleep(2)
-    print('Neutral: 57%')
-    time.sleep(2)
-    print('Bearish: 33%')
-    time.sleep(2)
-
-    user_input = input("Any New Trades to Add Today? \n 1. Yes \n 2. No \n")
-    if user_input == 'Y' or 'y' or '1' or 1:
+    print('Good ' + str(time_of_day) + ', ' + str(name) +  '.')
+    user_input = input("Add A New Trade? \n 1. Yes \n 2. No \n")
+    user_input = str(user_input)
+    if user_input == '1':
+        from main import new_trade_meta
         new_trade_meta()
-    elif user_input == 'N' or 'n' or '2' or 2:
+    elif user_input == '2':
+        print('User Input is 2. No Trade to Add.')
+        from main import display_bonus_info, update_portfolio_sheet, stop_loss_alerts
+        update_portfolio_sheet()
+        stop_loss_alerts()
         display_bonus_info()
     elif user_input != 'Y' or 'y' or '1' or 1 or 'N' or 'n' or '2' or '2':
-        print('Goodbye...')
+        print('Please Enter 1 for New Trade or 2 to check features.')
         break
 
     
